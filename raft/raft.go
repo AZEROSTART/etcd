@@ -36,6 +36,7 @@ const None uint64 = 0
 const noLimit = math.MaxUint64
 
 // Possible values for StateType.
+// 状态机。
 const (
 	StateFollower StateType = iota
 	StateCandidate
@@ -229,6 +230,7 @@ func (c *Config) validate() error {
 		return errors.New("max inflight messages must be greater than 0")
 	}
 
+	//顺便初始化了loger（用的logger是标准库的log
 	if c.Logger == nil {
 		c.Logger = getLogger()
 	}
@@ -315,7 +317,10 @@ type raft struct {
 	pendingReadIndexMessages []pb.Message
 }
 
+// 初始化
+// 之后会调用becomeFollower切换状态Follower
 func newRaft(c *Config) *raft {
+	// 配置文件初始化，logger使用标准库里面的log
 	if err := c.validate(); err != nil {
 		panic(err.Error())
 	}
