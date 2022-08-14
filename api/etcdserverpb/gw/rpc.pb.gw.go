@@ -4,7 +4,7 @@
 /*
 Package etcdserverpb is a reverse proxy.
 
-It translates gRPC into RESTful JSON APIs.
+It translates gRPC into  JSON APIs.
 */
 package gw
 
