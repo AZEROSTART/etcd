@@ -120,8 +120,11 @@ func (a *reqV2HandlerEtcdServer) processRaftRequest(ctx context.Context, r *Requ
 	return Response{}, errors.ErrStopped
 }
 
+//
 func (s *EtcdServer) Do(ctx context.Context, r pb.Request) (Response, error) {
+	// 1生成ID
 	r.ID = s.reqIDGen.Next()
+
 	h := &reqV2HandlerEtcdServer{
 		reqV2HandlerStore: reqV2HandlerStore{
 			store:   s.v2store,
@@ -130,7 +133,9 @@ func (s *EtcdServer) Do(ctx context.Context, r pb.Request) (Response, error) {
 		s: s,
 	}
 	rp := &r
-	resp, err := ((*RequestV2)(rp)).Handle(ctx, h)
+	resp, err := ((*RequestV2)(rp)).Handle(ctx, h)		// 请求的强转，入残hander
+
+	// 返回结果
 	resp.Term, resp.Index = s.Term(), s.CommittedIndex()
 	return resp, err
 }
@@ -141,6 +146,7 @@ func (s *EtcdServer) Do(ctx context.Context, r pb.Request) (Response, error) {
 // respective operation. Do will block until an action is performed or there is
 // an error.
 func (r *RequestV2) Handle(ctx context.Context, v2api RequestV2Handler) (Response, error) {
+	// 有点意思啊
 	if r.Method == "GET" && r.Quorum {
 		r.Method = "QGET"
 	}
