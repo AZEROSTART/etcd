@@ -38,7 +38,7 @@ type RawNode struct {
 }
 
 // NewRawNode instantiates a RawNode from the given configuration.
-//
+// 设置node为follower角色，追踪其他node
 // See Bootstrap() for bootstrapping an initial state; this replaces the former
 // 'peers' argument to this method (with identical behavior). However, It is
 // recommended that instead of calling Bootstrap, applications bootstrap their
@@ -49,8 +49,8 @@ func NewRawNode(config *Config) (*RawNode, error) {
 	rn := &RawNode{
 		raft: r,
 	}
-	rn.prevSoftSt = r.softState()
-	rn.prevHardSt = r.hardState()
+	rn.prevSoftSt = r.softState() // Curren state
+	rn.prevHardSt = r.hardState() // same？
 	return rn, nil
 }
 

@@ -219,7 +219,7 @@ func StartNode(c *Config, peers []Peer) Node {
 	if len(peers) == 0 {
 		panic("no peers given; use RestartNode instead")
 	}
-	rn, err := NewRawNode(c)
+	rn, err := NewRawNode(c) // 主要设置term
 	if err != nil {
 		panic(err)
 	}

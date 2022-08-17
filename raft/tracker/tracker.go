@@ -187,7 +187,7 @@ func insertionSort(sl []uint64) {
 	}
 }
 
-// Visit invokes the supplied closure for all tracked progresses in stable order.
+// Visit invokes 调用the supplied closure for all tracked progresses in stable order.
 func (p *ProgressTracker) Visit(f func(id uint64, pr *Progress)) {
 	n := len(p.Progress)
 	// We need to sort the IDs and don't want to allocate since this is hot code.

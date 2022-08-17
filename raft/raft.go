@@ -317,8 +317,8 @@ type raft struct {
 	pendingReadIndexMessages []pb.Message
 }
 
-// 初始化
-// 之后会调用becomeFollower切换状态Follower
+// 初始化,在初始化etcd时候调用
+// 其中会调用becomeFollower切换状态Follower
 func newRaft(c *Config) *raft {
 	// 配置文件初始化，logger使用标准库里面的log
 	if err := c.validate(); err != nil {
@@ -331,13 +331,13 @@ func newRaft(c *Config) *raft {
 	}
 
 	r := &raft{
-		id:                        c.ID,
+		id:                        c.ID, //配置文件里面写好的id
 		lead:                      None,
 		isLearner:                 false,
 		raftLog:                   raftlog,
 		maxMsgSize:                c.MaxSizePerMsg,
 		maxUncommittedSize:        c.MaxUncommittedEntriesSize,
-		prs:                       tracker.MakeProgressTracker(c.MaxInflightMsgs),
+		prs:                       tracker.MakeProgressTracker(c.MaxInflightMsgs), // track 其他的peer
 		electionTimeout:           c.ElectionTick,
 		heartbeatTimeout:          c.HeartbeatTick,
 		logger:                    c.Logger,
@@ -359,6 +359,7 @@ func newRaft(c *Config) *raft {
 	if !IsEmptyHardState(hs) {
 		r.loadState(hs)
 	}
+	// 重启的时候，提交的跳到这里。有保存
 	if c.Applied > 0 {
 		raftlog.appliedTo(c.Applied)
 	}
@@ -592,6 +593,7 @@ func (r *raft) maybeCommit() bool {
 	return r.raftLog.maybeCommit(mci, r.Term)
 }
 
+// becomFollower设置term
 func (r *raft) reset(term uint64) {
 	if r.Term != term {
 		r.Term = term
@@ -605,8 +607,8 @@ func (r *raft) reset(term uint64) {
 
 	r.abortLeaderTransfer()
 
-	r.prs.ResetVotes()
-	r.prs.Visit(func(id uint64, pr *tracker.Progress) {
+	r.prs.ResetVotes()                                  //为什么叫这个名字？里面是初始化结构体votes（为别node选举）
+	r.prs.Visit(func(id uint64, pr *tracker.Progress) { // 监控别的node
 		*pr = tracker.Progress{
 			Match:     0,
 			Next:      r.raftLog.lastIndex() + 1,
@@ -688,6 +690,9 @@ func (r *raft) tickHeartbeat() {
 	}
 }
 
+// 多个场景成为follwer
+// 抽象动作：设置term，设置leac是谁
+// 1。启动时候，term为配置文件项目，默认0；lead为none
 func (r *raft) becomeFollower(term uint64, lead uint64) {
 	r.step = stepFollower
 	r.reset(term)

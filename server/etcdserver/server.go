@@ -155,6 +155,7 @@ type ServerV3 interface {
 
 func (s *EtcdServer) ClientCertAuthEnabled() bool { return s.Cfg.ClientCertAuthEnabled }
 
+//将 v2和v3拆开了，变成了两个接口！这里涉及到了抽象部分了。
 type Server interface {
 	// AddMember attempts to add a member into the cluster. It will return
 	// ErrIDRemoved if member ID is removed from the cluster, or return
@@ -205,18 +206,21 @@ type Server interface {
 }
 
 // EtcdServer is the production implementation of the Server interface
+// 这个实现了server接口，但是v2，v3的呢？:在他的高一层，包裹了它。
+// 看一个东西，看他的底层的数据结构，都是为了底层数据结构服务。
 type EtcdServer struct {
 	// inflightSnapshots holds count the number of snapshots currently inflight.
+	// inflight 是正在飞的意思，这个表示已发出去但没收到响应的快照数。
 	inflightSnapshots int64  // must use atomic operations to access; keep 64-bit aligned.
-	appliedIndex      uint64 // must use atomic operations to access; keep 64-bit aligned.
-	committedIndex    uint64 // must use atomic operations to access; keep 64-bit aligned.
+	appliedIndex      uint64 // must use atomic operations to access; keep 64-bit aligned. 已经应用了的最大的索引（大于等于已提交
+	committedIndex    uint64 // must use atomic operations to access; keep 64-bit aligned.	已经提交的索引（表示已提交
 	term              uint64 // must use atomic operations to access; keep 64-bit aligned.
 	lead              uint64 // must use atomic operations to access; keep 64-bit aligned.
 
 	consistIndex cindex.ConsistentIndexer // consistIndex is used to get/set/save consistentIndex
 	r            raftNode                 // uses 64-bit atomics; keep 64-bit aligned.
 
-	readych chan struct{}
+	readych chan struct{} //ready for what？ for serving!
 	Cfg     config.ServerConfig
 
 	lgMu *sync.RWMutex
@@ -243,19 +247,20 @@ type EtcdServer struct {
 
 	errorc     chan error
 	memberId   types.ID
-	attributes membership.Attributes
+	attributes membership.Attributes // 属性，特质，记录自己的名字、客户端来的url地址。我还记录这个。可以啊。在配置文件中配置。static
 
 	cluster *membership.RaftCluster
 
 	v2store     v2store.Store
-	snapshotter *snap.Snapshotter
+	snapshotter *snap.Snapshotter // 用于快照
 
-	applyV2 ApplierV2
+	applyV2 ApplierV2 // 应用entry，应该是通过了一致性模块的检测，就apply
 
 	uberApply apply.UberApplier
 
 	applyWait wait.WaitTime
 
+	// 下面主要是v3的存储部分
 	kv         mvcc.WatchableKV
 	lessor     lease.Lessor
 	bemu       sync.RWMutex
@@ -312,8 +317,8 @@ func NewServer(cfg config.ServerConfig) (srv *EtcdServer, err error) {
 		}
 	}()
 
-	sstats := stats.NewServerStats(cfg.Name, b.cluster.cl.String())
-	lstats := stats.NewLeaderStats(cfg.Logger, b.cluster.nodeID.String())
+	sstats := stats.NewServerStats(cfg.Name, b.cluster.cl.String())       // 服务状态
+	lstats := stats.NewLeaderStats(cfg.Logger, b.cluster.nodeID.String()) //leader状态起，每个node都有机会填充这个结构体。
 
 	heartbeat := time.Duration(cfg.TickMs) * time.Millisecond
 	srv = &EtcdServer{
@@ -324,7 +329,7 @@ func NewServer(cfg config.ServerConfig) (srv *EtcdServer, err error) {
 		errorc:                make(chan error, 1),
 		v2store:               b.storage.st,
 		snapshotter:           b.ss,
-		r:                     *b.raft.newRaftNode(b.ss, b.storage.wal.w, b.cluster.cl),
+		r:                     *b.raft.newRaftNode(b.ss, b.storage.wal.w, b.cluster.cl), // 在这里start raft模块，并且通知其他的node
 		memberId:              b.cluster.nodeID,
 		attributes:            membership.Attributes{Name: cfg.Name, ClientURLs: cfg.ClientURLs.StringSlice()},
 		cluster:               b.cluster.cl,
@@ -332,15 +337,15 @@ func NewServer(cfg config.ServerConfig) (srv *EtcdServer, err error) {
 		lstats:                lstats,
 		SyncTicker:            time.NewTicker(500 * time.Millisecond),
 		peerRt:                b.prt,
-		reqIDGen:              idutil.NewGenerator(uint16(b.cluster.nodeID), time.Now()),
+		reqIDGen:              idutil.NewGenerator(uint16(b.cluster.nodeID), time.Now()), // 请求id，
 		AccessController:      &AccessController{CORS: cfg.CORS, HostWhitelist: cfg.HostWhitelist},
 		consistIndex:          b.storage.backend.ci,
-		firstCommitInTerm:     notify.NewNotifier(),
+		firstCommitInTerm:     notify.NewNotifier(), // 释放一个chan来达到noti的方式
 		clusterVersionChanged: notify.NewNotifier(),
 	}
 	serverID.With(prometheus.Labels{"server_id": b.cluster.nodeID.String()}).Set(1)
 	srv.cluster.SetVersionChangedNotifier(srv.clusterVersionChanged)
-	srv.applyV2 = NewApplierV2(cfg.Logger, srv.v2store, srv.cluster)
+	srv.applyV2 = NewApplierV2(cfg.Logger, srv.v2store, srv.cluster) // applyV2是用于处理raft msg的地方
 
 	srv.be = b.storage.backend.be
 	srv.beHooks = b.storage.backend.beHooks
@@ -355,6 +360,7 @@ func NewServer(cfg config.ServerConfig) (srv *EtcdServer, err error) {
 		ExpiredLeasesRetryInterval: srv.Cfg.ReqTimeout(),
 	})
 
+	//鉴权
 	tp, err := auth.NewTokenProvider(cfg.Logger, cfg.AuthToken,
 		func(index uint64) <-chan struct{} {
 			return srv.applyWait.Wait(index)

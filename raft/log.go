@@ -110,10 +110,11 @@ func (l *raftLog) append(ents ...pb.Entry) uint64 {
 	if len(ents) == 0 {
 		return l.lastIndex()
 	}
+	// 不能更小的commit
 	if after := ents[0].Index - 1; after < l.committed {
 		l.logger.Panicf("after(%d) is out of range [committed(%d)]", after, l.committed)
 	}
-	l.unstable.truncateAndAppend(ents)
+	l.unstable.truncateAndAppend(ents) // 截断和add，放入entries中。
 	return l.lastIndex()
 }
 

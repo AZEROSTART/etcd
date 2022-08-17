@@ -48,7 +48,7 @@ func (rn *RawNode) Bootstrap(peers []Peer) error {
 	// TODO(tbg): remove StartNode and give the application the right tools to
 	// bootstrap the initial membership in a cleaner way.
 	rn.raft.becomeFollower(1, None)
-	ents := make([]pb.Entry, len(peers))
+	ents := make([]pb.Entry, len(peers)) // 每个peer一个消息
 	for i, peer := range peers {
 		cc := pb.ConfChange{Type: pb.ConfChangeAddNode, NodeID: peer.ID, Context: peer.Context}
 		data, err := cc.Marshal()
@@ -58,6 +58,7 @@ func (rn *RawNode) Bootstrap(peers []Peer) error {
 
 		ents[i] = pb.Entry{Type: pb.EntryConfChange, Term: 1, Index: uint64(i + 1), Data: data}
 	}
+	// 持久化，放入log中
 	rn.raft.raftLog.append(ents...)
 
 	// Now apply them, mainly so that the application can call Campaign
@@ -74,6 +75,7 @@ func (rn *RawNode) Bootstrap(peers []Peer) error {
 	// the invariant that committed < unstable?
 	rn.raft.raftLog.committed = uint64(len(ents))
 	for _, peer := range peers {
+		// 传入一个id，就可以了。
 		rn.raft.applyConfChange(pb.ConfChange{NodeID: peer.ID, Type: pb.ConfChangeAddNode}.AsV2())
 	}
 	return nil

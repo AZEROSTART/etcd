@@ -45,7 +45,7 @@ const (
 // The count field may overflow to timestamp field, which is intentional.
 // It helps to extend the event window to 2^56. This doesn't break that
 // id generated after restart is unique because etcd throughput is <<
-// 256req/ms(250k reqs/second).
+// 256req/ms 草，这里是ms：qpms	(250k reqs/second).		那这样就ok了，2的8次方=256.
 type Generator struct {
 	// high order 2 bytes
 	prefix uint64
@@ -53,9 +53,10 @@ type Generator struct {
 	suffix uint64
 }
 
+// 居然支持25wqps并发内保持id相同。
 func NewGenerator(memberID uint16, now time.Time) *Generator {
 	prefix := uint64(memberID) << suffixLen
-	unixMilli := uint64(now.UnixNano()) / uint64(time.Millisecond/time.Nanosecond)
+	unixMilli := uint64(now.UnixNano()) / uint64(time.Millisecond/time.Nanosecond) // 这个是转换为ms；毫秒；
 	suffix := lowbit(unixMilli, tsLen) << cntLen
 	return &Generator{
 		prefix: prefix,
@@ -65,7 +66,9 @@ func NewGenerator(memberID uint16, now time.Time) *Generator {
 
 // Next generates a id that is unique.
 func (g *Generator) Next() uint64 {
+	// 后缀+1
 	suffix := atomic.AddUint64(&g.suffix, 1)
+	// 前缀 ｜后缀
 	id := g.prefix | lowbit(suffix, suffixLen)
 	return id
 }

@@ -471,12 +471,16 @@ func (c *bootstrapedCluster) databaseFileMissing(s *bootstrappedStorage) bool {
 	return v3Cluster && !s.backend.beExist
 }
 
+// 启动raft
 func bootstrapRaft(cfg config.ServerConfig, cluster *bootstrapedCluster, bwal *bootstrappedWAL) *bootstrappedRaft {
 	switch {
+	// 1：没有wal日志文件（不用恢复）且 当前节点正在加入一个正在运行的集群（没有新集群，配置文件配置的）
 	case !bwal.haveWAL && !cfg.NewCluster:
 		return bootstrapRaftFromCluster(cfg, cluster.cl, nil, bwal)
+	// 2：没有日志文件且集群新建
 	case !bwal.haveWAL && cfg.NewCluster:
 		return bootstrapRaftFromCluster(cfg, cluster.cl, cluster.cl.MemberIDs(), bwal)
+	// 3: 重启，即存在日志文件
 	case bwal.haveWAL:
 		return bootstrapRaftFromWAL(cfg, bwal)
 	default:
@@ -485,9 +489,10 @@ func bootstrapRaft(cfg config.ServerConfig, cluster *bootstrapedCluster, bwal *b
 	}
 }
 
+// 场景1 没文件  有集群(集群已经在上面初始化ok了，填入信息就可以)
 func bootstrapRaftFromCluster(cfg config.ServerConfig, cl *membership.RaftCluster, ids []types.ID, bwal *bootstrappedWAL) *bootstrappedRaft {
 	member := cl.MemberByName(cfg.Name)
-	peers := make([]raft.Peer, len(ids))
+	peers := make([]raft.Peer, len(ids)) // 这里ids为空，即有集群的不用这个id，没集群的才用
 	for i, id := range ids {
 		var ctx []byte
 		ctx, err := json.Marshal((*cl).Member(id))
@@ -535,6 +540,8 @@ func raftConfig(cfg config.ServerConfig, id uint64, s *raft.MemoryStorage) *raft
 	}
 }
 
+// 初始化在etcdServer中
+// bootstrap引导程序
 func (b *bootstrappedRaft) newRaftNode(ss *snap.Snapshotter, wal *wal.WAL, cl *membership.RaftCluster) *raftNode {
 	var n raft.Node
 	if len(b.peers) == 0 {
@@ -543,7 +550,7 @@ func (b *bootstrappedRaft) newRaftNode(ss *snap.Snapshotter, wal *wal.WAL, cl *m
 		n = raft.StartNode(b.config, b.peers)
 	}
 	raftStatusMu.Lock()
-	raftStatus = n.Status
+	raftStatus = n.Status // etcd的server的包级别变量，这个这样可以让你在这个地方做你想要做的事情。加一些监控上报致列的
 	raftStatusMu.Unlock()
 	return newRaftNode(
 		raftNodeConfig{
