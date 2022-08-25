@@ -277,7 +277,7 @@ func (l *raftLog) term(i uint64) (uint64, error) {
 	if t, ok := l.unstable.maybeTerm(i); ok {
 		return t, nil
 	}
-
+	// 返回entry i在哪个term中
 	t, err := l.storage.Term(i)
 	if err == nil {
 		return t, nil

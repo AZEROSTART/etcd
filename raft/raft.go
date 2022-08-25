@@ -389,10 +389,12 @@ func (r *raft) hardState() pb.HardState {
 
 // send schedules persisting state to a stable storage and AFTER that
 // sending the message (as part of next Ready message processing).
+// 先持久化再发送
 func (r *raft) send(m pb.Message) {
 	if m.From == None {
 		m.From = r.id
 	}
+	// 以下的这些消息类型不能够term为0.
 	if m.Type == pb.MsgVote || m.Type == pb.MsgVoteResp || m.Type == pb.MsgPreVote || m.Type == pb.MsgPreVoteResp {
 		if m.Term == 0 {
 			// All {pre-,}campaign messages need to have the term set when
@@ -443,12 +445,13 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 	m := pb.Message{}
 	m.To = to
 
-	term, errt := r.raftLog.term(pr.Next - 1)
+	// 获取一个entry在哪个term
+	term, errt := r.raftLog.term(pr.Next - 1) // next-1就是当前索引值，node内的。
 	ents, erre := r.raftLog.entries(pr.Next, r.maxMsgSize)
 	if len(ents) == 0 && !sendIfEmpty {
 		return false
 	}
-
+	// 这里说明，follower节点查不到对应的entry，那就需要对他进行snapshot快照同步 / app应用消息
 	if errt != nil || erre != nil { // send snapshot if we failed to get term or entries
 		if !pr.RecentActive {
 			r.logger.Debugf("ignore sending snapshot to %x since it is not recently active", to)
@@ -474,6 +477,7 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 		pr.BecomeSnapshot(sindex)
 		r.logger.Debugf("%x paused sending replication messages to %x [%s]", r.id, to, pr)
 	} else {
+		// 找到entry 设置消息等；
 		m.Type = pb.MsgApp
 		m.Index = pr.Next - 1
 		m.LogTerm = term
@@ -493,6 +497,7 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 			}
 		}
 	}
+	// 这里的发送就是将msg放到raft的msg结构体中
 	r.send(m)
 	return true
 }
@@ -518,8 +523,9 @@ func (r *raft) sendHeartbeat(to uint64, ctx []byte) {
 
 // bcastAppend sends RPC, with entries to all peers that are not up-to-date
 // according to the progress recorded in r.prs.
+// 给不新的node同步，发送的有顺序，给ids进行插入排序了。
 func (r *raft) bcastAppend() {
-	r.prs.Visit(func(id uint64, _ *tracker.Progress) {
+	r.prs.Visit(func(id uint64, _ *tracker.Progress) { //有意思，传入，不用，
 		if id == r.id {
 			return
 		}
@@ -625,10 +631,11 @@ func (r *raft) reset(term uint64) {
 	r.readOnly = newReadOnly(r.readOnly.option)
 }
 
+// 添加entry的时候，需要修改了他们的term值。
 func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
-	li := r.raftLog.lastIndex()
+	li := r.raftLog.lastIndex() // 这个是目前的最后一个index
 	for i := range es {
-		es[i].Term = r.Term
+		es[i].Term = r.Term // term改变
 		es[i].Index = li + 1 + uint64(i)
 	}
 	// Track the size of this uncommitted proposal.
@@ -1040,11 +1047,11 @@ func stepLeader(r *raft, m pb.Message) error {
 			r.logger.Debugf("%x [term %d] transfer leadership to %x is in progress; dropping proposal", r.id, r.Term, r.leadTransferee)
 			return ErrProposalDropped
 		}
-
+		// 这个for循环，在处理confChange
 		for i := range m.Entries {
 			e := &m.Entries[i]
 			var cc pb.ConfChangeI
-			if e.Type == pb.EntryConfChange {
+			if e.Type == pb.EntryConfChange { // entry的类型
 				var ccc pb.ConfChange
 				if err := ccc.Unmarshal(e.Data); err != nil {
 					panic(err)
@@ -1079,10 +1086,11 @@ func stepLeader(r *raft, m pb.Message) error {
 				}
 			}
 		}
-
-		if !r.appendEntry(m.Entries...) {
+		// 添加entry，处理index
+		if !r.appenran houranhoudEntry(m.Entries...) {
 			return ErrProposalDropped
 		}
+		// 给不同的node同步
 		r.bcastAppend()
 		return nil
 	case pb.MsgReadIndex:
@@ -1768,6 +1776,7 @@ func (r *raft) responseToReadIndexReq(req pb.Message, readIndex uint64) pb.Messa
 //
 // Empty payloads are never refused. This is used both for appending an empty
 // entry at a new leader's term, as well as leaving a joint configuration.
+// 判断储存data的地方有没有被超过。payload负荷
 func (r *raft) increaseUncommittedSize(ents []pb.Entry) bool {
 	var s uint64
 	for _, e := range ents {

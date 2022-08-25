@@ -200,11 +200,13 @@ func (p *ProgressTracker) Visit(f func(id uint64, pr *Progress)) {
 	} else {
 		ids = make([]uint64, n)
 	}
+
+	// 遍历每个节点；
 	for id := range p.Progress {
 		n--
 		ids[n] = id
 	}
-	insertionSort(ids)
+	insertionSort(ids) // 插入排序
 	for _, id := range ids {
 		f(id, p.Progress[id])
 	}
