@@ -405,6 +405,7 @@ message ResponseHeader {
   uint64 raft_term = 4;
 }
 
+// 调用 Rang API
 message RangeRequest {
   option (versionpb.etcd_version_msg) = "3.0";
 
@@ -433,6 +434,7 @@ message RangeRequest {
   bytes range_end = 2;
   // limit is a limit on the number of keys returned for the request. When limit is set to 0,
   // it is treated as no limit.
+  // 返回的限制数量
   int64 limit = 3;
   // revision is the point-in-time of the key-value store to use for the range.
   // If revision is less or equal to zero, the range is over the newest key-value store.
@@ -451,9 +453,12 @@ message RangeRequest {
   // consensus of the cluster. For better performance, in exchange for possible stale reads,
   // a serializable range request is served locally without needing to reach consensus
   // with other nodes in the cluster.
+  // 串性化的读，即本地读，有可能读到过期的数据为代价，不需要经过raft模块。
+  // 默认line线性化
   bool serializable = 7;
 
   // keys_only when set returns only the keys and not the values.
+  // 只返回keys
   bool keys_only = 8;
 
   // count_only when set returns only the count of the keys in the range.
@@ -461,6 +466,7 @@ message RangeRequest {
 
   // min_mod_revision is the lower bound for returned key mod revisions; all keys with
   // lesser mod revisions will be filtered away.
+  // mod最后一次版本
   int64 min_mod_revision = 10 [(versionpb.etcd_version_field)="3.1"];
 
   // max_mod_revision is the upper bound for returned key mod revisions; all keys with

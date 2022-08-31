@@ -117,10 +117,10 @@ func (s *EtcdServer) Range(ctx context.Context, r *pb.RangeRequest) (*pb.RangeRe
 				traceutil.Field{Key: "response_revision", Value: resp.Header.Revision},
 			)
 		}
-		trace.LogIfLong(traceThreshold)
+		trace.LogIfLong(traceThreshold) // 请求超过一定的时间就打印log！
 	}(time.Now())
 
-	if !r.Serializable {
+	if !r.Serializable { // 不是序列化，就是
 		err = s.linearizableReadNotify(ctx)
 		trace.Step("agreement among raft nodes before linearized reading")
 		if err != nil {
@@ -131,8 +131,10 @@ func (s *EtcdServer) Range(ctx context.Context, r *pb.RangeRequest) (*pb.RangeRe
 		return s.authStore.IsRangePermitted(ai, r.Key, r.RangeEnd)
 	}
 
+	// 这里的txn里面的rang方法，然后传入的参数里面的kv中的rang
+	// 利用etcd里面的kv结构体
 	get := func() { resp, err = txn.Range(ctx, s.Logger(), s.KV(), nil, r) }
-	if serr := s.doSerialize(ctx, chk, get); serr != nil {
+	if serr := s.doSerialize(ctx, chk, get); serr != nil { // 以匿名函数方式
 		err = serr
 		return nil, err
 	}
@@ -642,7 +644,7 @@ func (s *EtcdServer) doSerialize(ctx context.Context, chk func(*auth.AuthInfo) e
 		// chk expects non-nil AuthInfo; use empty credentials
 		ai = &auth.AuthInfo{}
 	}
-	if err = chk(ai); err != nil {
+	if err = chk(ai); err != nil { // 获取auth信息然后做鉴权
 		return err
 	}
 	trace.Step("get authentication metadata")

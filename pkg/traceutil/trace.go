@@ -134,8 +134,8 @@ func (t *Trace) StepWithFunction(f func(), msg string, fields ...Field) {
 
 func (t *Trace) AddField(fields ...Field) {
 	for _, f := range fields {
-		if !t.updateFieldIfExist(f) {
-			t.fields = append(t.fields, f)
+		if !t.updateFieldIfExist(f) { // 存在就更新。
+			t.fields = append(t.fields, f) // 不存在就append
 		}
 	}
 }
@@ -153,7 +153,7 @@ func (t *Trace) Log() {
 func (t *Trace) LogIfLong(threshold time.Duration) {
 	if time.Since(t.startTime) > threshold {
 		stepThreshold := threshold / time.Duration(len(t.steps)+1)
-		t.LogWithStepThreshold(stepThreshold)
+		t.LogWithStepThreshold(stepThreshold) // 平均每步
 	}
 }
 
@@ -168,14 +168,16 @@ func (t *Trace) LogAllStepsIfLong(threshold time.Duration) {
 func (t *Trace) LogWithStepThreshold(threshold time.Duration) {
 	msg, fs := t.logInfo(threshold)
 	if t.lg != nil {
-		t.lg.Info(msg, fs...)
+		t.lg.Info(msg, fs...) // 写进去
 	}
 }
 
+// 生成消息
 func (t *Trace) logInfo(threshold time.Duration) (string, []zap.Field) {
 	endTime := time.Now()
 	totalDuration := endTime.Sub(t.startTime)
 	traceNum := rand.Int31()
+
 	msg := fmt.Sprintf("trace[%d] %s", traceNum, t.operation)
 
 	var steps []string

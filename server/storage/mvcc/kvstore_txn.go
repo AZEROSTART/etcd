@@ -62,17 +62,23 @@ func (tr *storeTxnRead) Range(ctx context.Context, key, end []byte, ro RangeOpti
 	return tr.rangeKeys(ctx, key, end, tr.Rev(), ro)
 }
 
+// etcd v3查询
+// 真正实现rang查询的函数！
+// 入参制定一个查询指定版本：curRev
 func (tr *storeTxnRead) rangeKeys(ctx context.Context, key, end []byte, curRev int64, ro RangeOptions) (*RangeResult, error) {
 	rev := ro.Rev
+	// boltDB返回一个更新的revi
 	if rev > curRev {
 		return &RangeResult{KVs: nil, Count: -1, Rev: curRev}, ErrFutureRev
 	}
 	if rev <= 0 {
 		rev = curRev
 	}
+	// 因为etcd为了不让rev变得太大，会定期清除老版本数据，这里判断如果小于上次回收版本号就返回
 	if rev < tr.s.compactMainRev {
 		return &RangeResult{KVs: nil, Count: -1, Rev: 0}, ErrCompacted
 	}
+	// 仅获取数量
 	if ro.Count {
 		total := tr.s.kvindex.CountRevisions(key, end, rev)
 		tr.trace.Step("count revisions from in-memory index tree")

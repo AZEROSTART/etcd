@@ -38,9 +38,11 @@ type index interface {
 	KeyIndex(ki *keyIndex) *keyIndex
 }
 
+// 就是这玩意儿！重要，一个B树实现，维护的是从key到revision的查询
+// 首先从keyIndex中找到对应key的modify revision（最后一次更改的revision），然后用这个去boltDB查询val
 type treeIndex struct {
 	sync.RWMutex
-	tree *btree.BTree
+	tree *btree.BTree // 用了google的btree
 	lg   *zap.Logger
 }
 
@@ -70,6 +72,7 @@ func (ti *treeIndex) Get(key []byte, atRev int64) (modified, created revision, v
 	keyi := &keyIndex{key: key}
 	ti.RLock()
 	defer ti.RUnlock()
+	// 先在内存btree获取到对应版本，再db查询。相当于索引
 	if keyi = ti.keyIndex(keyi); keyi == nil {
 		return revision{}, revision{}, 0, ErrRevisionNotFound
 	}
@@ -127,6 +130,7 @@ func (ti *treeIndex) Revisions(key, end []byte, atRev int64, limit int) (revs []
 }
 
 func (ti *treeIndex) CountRevisions(key, end []byte, atRev int64) int {
+	// end为空，返回一个key
 	if end == nil {
 		_, _, _, err := ti.Get(key, atRev)
 		if err != nil {

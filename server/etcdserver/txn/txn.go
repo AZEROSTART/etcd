@@ -112,6 +112,7 @@ func DeleteRange(kv mvcc.KV, txnWrite mvcc.TxnWrite, dr *pb.DeleteRangeRequest) 
 	return resp, nil
 }
 
+// range方法：
 func Range(ctx context.Context, lg *zap.Logger, kv mvcc.KV, txnRead mvcc.TxnRead, r *pb.RangeRequest) (*pb.RangeResponse, error) {
 	trace := traceutil.Get(ctx)
 
@@ -119,6 +120,7 @@ func Range(ctx context.Context, lg *zap.Logger, kv mvcc.KV, txnRead mvcc.TxnRead
 	resp.Header = &pb.ResponseHeader{}
 
 	if txnRead == nil {
+		// 说明不是事务读，添加。kv是一个接口，具体实现是根据传入的实例（v2的存储还是v3的存储）
 		txnRead = kv.Read(mvcc.ConcurrentReadTxMode, trace)
 		defer txnRead.End()
 	}

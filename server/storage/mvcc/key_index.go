@@ -27,6 +27,7 @@ var (
 	ErrRevisionNotFound = errors.New("mvcc: revision not found")
 )
 
+//
 // keyIndex stores the revisions of a key in the backend.
 // Each keyIndex has at least one key generation.
 // Each generation might have several key versions.
@@ -67,6 +68,9 @@ var (
 // compact(6):
 // generations:
 //    {empty} -> key SHOULD be removed.
+// 保存了用户对于key的所有更改历史，每个更改有一个generation代
+// boltDB存储的是（revision主，副），不存key。
+//所以额外维护一个keyIndex
 type keyIndex struct {
 	key         []byte
 	modified    revision // the main rev of the last modification
@@ -141,7 +145,7 @@ func (ki *keyIndex) get(lg *zap.Logger, atRev int64) (modified, created revision
 			zap.String("key", string(ki.key)),
 		)
 	}
-	g := ki.findGeneration(atRev)
+	g := ki.findGeneration(atRev) // 找到那个合适的代
 	if g.isEmpty() {
 		return revision{}, revision{}, 0, ErrRevisionNotFound
 	}
