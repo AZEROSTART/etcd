@@ -738,6 +738,8 @@ func (r *raft) becomePreCandidate() {
 	r.logger.Infof("%x became pre-candidate at term %d", r.id, r.Term)
 }
 
+
+// 带着问题来的，如何拒绝丢失数据的成为leader，投反对票；（好像不应该在这里看）
 func (r *raft) becomeLeader() {
 	// TODO(xiangli) remove the panic when the raft implementation is stable
 	if r.state == StateFollower {
@@ -995,6 +997,7 @@ func (r *raft) Step(m pb.Message) error {
 		}
 
 	default:
+		// 心跳包
 		err := r.step(r, m)
 		if err != nil {
 			return err
@@ -1087,7 +1090,7 @@ func stepLeader(r *raft, m pb.Message) error {
 			}
 		}
 		// 添加entry，处理index
-		if !r.appenran houranhoudEntry(m.Entries...) {
+		if !r.appendEntry(m.Entries...) {
 			return ErrProposalDropped
 		}
 		// 给不同的node同步
@@ -1452,7 +1455,7 @@ func stepFollower(r *raft, m pb.Message) error {
 		r.electionElapsed = 0
 		r.lead = m.From
 		r.handleAppendEntries(m)
-	case pb.MsgHeartbeat:
+	case pb.MsgHeartbeat:	// 心跳包，设置选举间隔时间0
 		r.electionElapsed = 0
 		r.lead = m.From
 		r.handleHeartbeat(m)

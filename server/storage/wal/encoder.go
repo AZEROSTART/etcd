@@ -31,9 +31,10 @@ import (
 // distinguish between torn writes and ordinary data corruption.
 const walPageBytes = 8 * minSectorSize
 
+// 编码
 type encoder struct {
 	mu sync.Mutex
-	bw *ioutil.PageWriter
+	bw *ioutil.PageWriter // 一页一页写？
 
 	crc       hash.Hash32
 	buf       []byte
@@ -65,6 +66,7 @@ func (e *encoder) encode(rec *walpb.Record) error {
 
 	e.crc.Write(rec.Data)
 	rec.Crc = e.crc.Sum32()
+	// 编码的时候写crc
 	var (
 		data []byte
 		err  error
@@ -72,11 +74,13 @@ func (e *encoder) encode(rec *walpb.Record) error {
 	)
 
 	if rec.Size() > len(e.buf) {
+		// 记录过大
 		data, err = rec.Marshal()
 		if err != nil {
 			return err
 		}
 	} else {
+		// 够装
 		n, err = rec.MarshalTo(e.buf)
 		if err != nil {
 			return err
@@ -93,6 +97,7 @@ func (e *encoder) encode(rec *walpb.Record) error {
 		data = append(data, make([]byte, padBytes)...)
 	}
 	n, err = e.bw.Write(data)
+	// 上报指标
 	walWriteBytes.Add(float64(n))
 	return err
 }
@@ -100,7 +105,7 @@ func (e *encoder) encode(rec *walpb.Record) error {
 func encodeFrameSize(dataBytes int) (lenField uint64, padBytes int) {
 	lenField = uint64(dataBytes)
 	// force 8 byte alignment so length never gets a torn write
-	padBytes = (8 - (dataBytes % 8)) % 8
+	padBytes = (8 - (dataBytes % 8)) % 8 // 剩余应该补齐字节数
 	if padBytes != 0 {
 		lenField |= uint64(0x80|padBytes) << 56
 	}
@@ -117,6 +122,7 @@ func (e *encoder) flush() error {
 
 func writeUint64(w io.Writer, n uint64, buf []byte) error {
 	// http://golang.org/src/encoding/binary/binary.go
+	// 在补齐
 	binary.LittleEndian.PutUint64(buf, n)
 	nv, err := w.Write(buf)
 	walWriteBytes.Add(float64(nv))

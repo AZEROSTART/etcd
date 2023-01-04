@@ -112,6 +112,7 @@ func StartEtcd(inCfg *Config) (e *Etcd, err error) {
 	}()
 
 	if !cfg.SocketOpts.Empty() {
+		//可以重用端口
 		cfg.logger.Info(
 			"configuring socket options",
 			zap.Bool("reuse-address", cfg.SocketOpts.ReuseAddress),
@@ -122,6 +123,7 @@ func StartEtcd(inCfg *Config) (e *Etcd, err error) {
 		"configuring peer listeners",
 		zap.Strings("listen-peer-urls", e.cfg.getLPURLs()),
 	)
+	// 监听peer获得配置
 	if e.Peers, err = configurePeerListeners(cfg); err != nil {
 		return e, err
 	}
@@ -527,7 +529,7 @@ func configurePeerListeners(cfg *Config) (peers []*peerListener, err error) {
 			}
 		}
 		peers[i] = &peerListener{close: func(context.Context) error { return nil }}
-		peers[i].Listener, err = transport.NewListenerWithOpts(u.Host, u.Scheme,
+		peers[i].Listener, err = transport.NewListenerWithOpts(u.Host, u.Scheme,			// 配置监听者
 			transport.WithTLSInfo(&cfg.PeerTLSInfo),
 			transport.WithSocketOpts(&cfg.SocketOpts),
 			transport.WithTimeout(rafthttp.ConnReadTimeout, rafthttp.ConnWriteTimeout),
@@ -535,7 +537,7 @@ func configurePeerListeners(cfg *Config) (peers []*peerListener, err error) {
 		if err != nil {
 			return nil, err
 		}
-		// once serve, overwrite with 'http.Server.Shutdown'
+		// once serve, overwrite with 'http.Server.Shutdown'	优雅关闭
 		peers[i].close = func(context.Context) error {
 			return peers[i].Listener.Close()
 		}
@@ -636,7 +638,7 @@ func configureClientListeners(cfg *Config) (sctxs map[string]*serveCtx, err erro
 			oldctx.insecure = oldctx.insecure || sctx.insecure
 			continue
 		}
-
+		// 返回出来listener了
 		if sctx.l, err = transport.NewListenerWithOpts(addr, u.Scheme,
 			transport.WithSocketOpts(&cfg.SocketOpts),
 			transport.WithSkipTLSInfoCheck(true),
@@ -657,9 +659,9 @@ func configureClientListeners(cfg *Config) (sctxs map[string]*serveCtx, err erro
 			}
 			sctx.l = transport.LimitListener(sctx.l, int(fdLimit-reservedInternalFDNum))
 		}
-
+		// 默认是tcp，如果不使用unix的话
 		if network == "tcp" {
-			if sctx.l, err = transport.NewKeepAliveListener(sctx.l, network, nil); err != nil {
+			if sctx.l, err = transport.NewKeepAliveListener(sctx.l, network, nil); err != nil {	// 这个是返回的是一个实现了accept等方法的接口；即listener是一个接口
 				return nil, err
 			}
 		}

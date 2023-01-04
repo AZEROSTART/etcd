@@ -44,6 +44,7 @@ type ServerHealth interface {
 
 // HandleHealth registers metrics and health handlers. it checks health by using v3 range request
 // and its corresponding timeout.
+// 区别在于是通过什么地方来的吗？这个是用的http的请求
 func HandleHealth(lg *zap.Logger, mux *http.ServeMux, srv ServerHealth) {
 	mux.Handle(PathHealth, NewHealthHandler(lg, func(excludedAlarms AlarmSet, serializable bool) Health {
 		if h := checkAlarms(lg, srv, excludedAlarms); h.Health != "true" {
@@ -168,6 +169,8 @@ func checkAlarms(lg *zap.Logger, srv ServerHealth, excludedAlarms AlarmSet) Heal
 	return h
 }
 
+// 检查有没有leader
+// 0有特殊意义。设计一个枚举值的时候，需要考虑是不是需要0，以及一个特殊值表示无。与nil避开
 func checkLeader(lg *zap.Logger, srv ServerHealth, serializable bool) Health {
 	h := Health{Health: "true"}
 	if !serializable && (uint64(srv.Leader()) == raft.None) {

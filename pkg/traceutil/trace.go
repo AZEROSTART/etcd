@@ -76,6 +76,7 @@ func New(op string, lg *zap.Logger, fields ...Field) *Trace {
 }
 
 // TODO returns a non-nil, empty Trace
+// 返回一个不使用的trace
 func TODO() *Trace {
 	return &Trace{isEmpty: true}
 }

@@ -61,6 +61,7 @@ func NewCache(maxCacheEntries int) Cache {
 func (c *cache) Close() {}
 
 // cache implements Cache
+// 居然
 type cache struct {
 	mu  sync.RWMutex
 	lru *lru.Cache

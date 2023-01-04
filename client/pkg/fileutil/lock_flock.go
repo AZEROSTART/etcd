@@ -38,10 +38,13 @@ func flockTryLockFile(path string, flag int, perm os.FileMode) (*LockedFile, err
 }
 
 func flockLockFile(path string, flag int, perm os.FileMode) (*LockedFile, error) {
+	// 不存在就创建，并且打开
 	f, err := os.OpenFile(path, flag, perm)
 	if err != nil {
 		return nil, err
 	}
+	// 这个是什么
+	// 这个是文件锁。
 	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
 		f.Close()
 		return nil, err

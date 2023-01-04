@@ -40,6 +40,7 @@ var (
 )
 
 var (
+	// 变量
 	Key     = backend.Bucket(bucket{id: 1, name: keyBucketName, safeRangeBucket: true})
 	Meta    = backend.Bucket(bucket{id: 2, name: metaBucketName, safeRangeBucket: false})
 	Lease   = backend.Bucket(bucket{id: 3, name: leaseBucketName, safeRangeBucket: false})

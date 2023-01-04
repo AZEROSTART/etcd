@@ -138,8 +138,9 @@ func (ki *keyIndex) tombstone(lg *zap.Logger, main int64, sub int64) error {
 
 // get gets the modified, created revision and version of the key that satisfies the given atRev.
 // Rev must be smaller than or equal to the given atRev.
+//
 func (ki *keyIndex) get(lg *zap.Logger, atRev int64) (modified, created revision, ver int64, err error) {
-	if ki.isEmpty() {
+	if ki.isEmpty() { // 多用empty函数，以后定义一个结构体之后，需要定义IsEmpty函数
 		lg.Panic(
 			"'get' got an unexpected empty keyIndex",
 			zap.String("key", string(ki.key)),
@@ -205,6 +206,7 @@ func (ki *keyIndex) since(lg *zap.Logger, rev int64) []revision {
 // revision than the given atRev except the largest one (If the largest one is
 // a tombstone, it will not be kept).
 // If a generation becomes empty during compaction, it will be removed.
+// 压缩就是删除
 func (ki *keyIndex) compact(lg *zap.Logger, atRev int64, available map[revision]struct{}) {
 	if ki.isEmpty() {
 		lg.Panic(
@@ -253,7 +255,7 @@ func (ki *keyIndex) doCompact(atRev int64, available map[revision]struct{}) (gen
 	// and add the revision to the available map
 	f := func(rev revision) bool {
 		if rev.main <= atRev {
-			available[rev] = struct{}{}
+			available[rev] = struct{}{} // 这都可以？匿名函数里面的参数，可以被外面访问到。
 			return false
 		}
 		return true
@@ -283,7 +285,7 @@ func (ki *keyIndex) isEmpty() bool {
 // which means that the key does not exist at the given rev, it returns nil.
 func (ki *keyIndex) findGeneration(rev int64) *generation {
 	lastg := len(ki.generations) - 1
-	cg := lastg
+	cg := lastg // 最新的一个generation
 
 	for cg >= 0 {
 		if len(ki.generations[cg].revs) == 0 {
@@ -293,10 +295,12 @@ func (ki *keyIndex) findGeneration(rev int64) *generation {
 		g := ki.generations[cg]
 		if cg != lastg {
 			if tomb := g.revs[len(g.revs)-1].main; tomb <= rev {
+				//  rev在这里判断generation的最大值了，下面最小值就OK了
 				return nil
 			}
 		}
 		if g.revs[0].main <= rev {
+			// 改generation的第一个main咬小于等于就返回（最小值）
 			return &ki.generations[cg]
 		}
 		cg--
@@ -352,7 +356,7 @@ func (g *generation) isEmpty() bool { return g == nil || len(g.revs) == 0 }
 func (g *generation) walk(f func(rev revision) bool) int {
 	l := len(g.revs)
 	for i := range g.revs {
-		ok := f(g.revs[l-i-1])
+		ok := f(g.revs[l-i-1]) // 逆序判断，key需要自己实现。f
 		if !ok {
 			return l - i - 1
 		}

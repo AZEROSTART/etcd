@@ -21,6 +21,7 @@ import (
 	"go.etcd.io/etcd/server/v3/lease"
 )
 
+// 居然同名，虽然只是小写，厉害
 type readView struct{ kv KV }
 
 func (rv *readView) FirstRev() int64 {

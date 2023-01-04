@@ -129,8 +129,8 @@ type serverWatchStream struct {
 	watchable mvcc.WatchableKV
 	ag        AuthGetter
 
-	gRPCStream  pb.Watch_WatchServer
-	watchStream mvcc.WatchStream
+	gRPCStream  pb.Watch_WatchServer			// 输出流
+	watchStream mvcc.WatchStream				// 输入流
 	ctrlStream  chan *pb.WatchResponse
 
 	// mu protects progress, prevKV, fragment
@@ -177,7 +177,7 @@ func (ws *watchServer) Watch(stream pb.Watch_WatchServer) (err error) {
 
 	sws.wg.Add(1)
 	go func() {
-		sws.sendLoop()
+		sws.sendLoop()			// 事件发送出去，用流
 		sws.wg.Done()
 	}()
 
@@ -353,6 +353,7 @@ func (sws *serverWatchStream) recvLoop() error {
 	}
 }
 
+//
 func (sws *serverWatchStream) sendLoop() {
 	// watch ids that are currently active
 	ids := make(map[mvcc.WatchID]struct{})
@@ -377,6 +378,7 @@ func (sws *serverWatchStream) sendLoop() {
 
 	for {
 		select {
+		// 这里是从mvcc获取的了。有建改动了
 		case wresp, ok := <-sws.watchStream.Chan():
 			if !ok {
 				return
@@ -388,11 +390,12 @@ func (sws *serverWatchStream) sendLoop() {
 			evs := wresp.Events
 			events := make([]*mvccpb.Event, len(evs))
 			sws.mu.RLock()
-			needPrevKV := sws.prevKV[wresp.WatchID]
+			needPrevKV := sws.prevKV[wresp.WatchID]			// 需要之前的版本的数据吗？判断
 			sws.mu.RUnlock()
 			for i := range evs {
 				events[i] = &evs[i]
 				if needPrevKV && !IsCreateEvent(evs[i]) {
+					// 如果不是创建，那就是修改了，并且需要其他的版本数据
 					opt := mvcc.RangeOptions{Rev: evs[i].Kv.ModRevision - 1}
 					r, err := sws.watchable.Range(context.TODO(), evs[i].Kv.Key, nil, opt)
 					if err == nil && len(r.KVs) != 0 {
@@ -417,6 +420,7 @@ func (sws *serverWatchStream) sendLoop() {
 				continue
 			}
 
+			// 上报收到的事件
 			mvcc.ReportEventReceived(len(evs))
 
 			sws.mu.RLock()
@@ -506,6 +510,7 @@ func IsCreateEvent(e mvccpb.Event) bool {
 	return e.Type == mvccpb.PUT && e.Kv.CreateRevision == e.Kv.ModRevision
 }
 
+//
 func sendFragments(
 	wr *pb.WatchResponse,
 	maxRequestBytes int,

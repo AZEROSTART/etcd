@@ -61,18 +61,23 @@ func (h *leaseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var v []byte
 	switch r.URL.Path {
+	// 路径选择
 	case LeasePrefix:
+		//构造请求
 		lreq := pb.LeaseKeepAliveRequest{}
+
 		if uerr := lreq.Unmarshal(b); uerr != nil {
-			http.Error(w, "error unmarshalling request", http.StatusBadRequest)
+			http.Error(w, "error unmarshalling request", http.StatusBadRequest)		// http包
 			return
 		}
+
 		select {
 		case <-h.waitch():
 		case <-time.After(applyTimeout):
 			http.Error(w, ErrLeaseHTTPTimeout.Error(), http.StatusRequestTimeout)
 			return
 		}
+
 		ttl, rerr := h.l.Renew(lease.LeaseID(lreq.ID))
 		if rerr != nil {
 			if rerr == lease.ErrLeaseNotFound {

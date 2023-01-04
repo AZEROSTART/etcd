@@ -35,6 +35,7 @@ type storeTxnRead struct {
 	trace *traceutil.Trace
 }
 
+// store的Range读，就是从压缩版本到当亲啊版本的reversion
 func (s *store) Read(mode ReadTxMode, trace *traceutil.Trace) TxnRead {
 	s.mu.RLock()
 	s.revMu.RLock()
@@ -44,6 +45,7 @@ func (s *store) Read(mode ReadTxMode, trace *traceutil.Trace) TxnRead {
 	// rather than duplicating transaction read buffer to avoid transaction overhead.
 	var tx backend.ReadTx
 	if mode == ConcurrentReadTxMode {
+		// 并发就是非堵塞的读！！！！！
 		tx = s.b.ConcurrentReadTx()
 	} else {
 		tx = s.b.ReadTx()
@@ -65,9 +67,10 @@ func (tr *storeTxnRead) Range(ctx context.Context, key, end []byte, ro RangeOpti
 // etcd v3查询
 // 真正实现rang查询的函数！
 // 入参制定一个查询指定版本：curRev
+// 去db查询
 func (tr *storeTxnRead) rangeKeys(ctx context.Context, key, end []byte, curRev int64, ro RangeOptions) (*RangeResult, error) {
 	rev := ro.Rev
-	// boltDB返回一个更新的revi
+	// boltDB返回一个更新的revi（错误）
 	if rev > curRev {
 		return &RangeResult{KVs: nil, Count: -1, Rev: curRev}, ErrFutureRev
 	}
@@ -80,10 +83,11 @@ func (tr *storeTxnRead) rangeKeys(ctx context.Context, key, end []byte, curRev i
 	}
 	// 仅获取数量
 	if ro.Count {
-		total := tr.s.kvindex.CountRevisions(key, end, rev)
+		total := tr.s.kvindex.CountRevisions(key, end, rev) // kenIndex获取reversion的totoal。毕竟只是count
 		tr.trace.Step("count revisions from in-memory index tree")
 		return &RangeResult{KVs: nil, Count: total, Rev: curRev}, nil
 	}
+
 	revpairs, total := tr.s.kvindex.Revisions(key, end, rev, int(ro.Limit))
 	tr.trace.Step("range keys from in-memory index tree")
 	if len(revpairs) == 0 {
@@ -91,28 +95,30 @@ func (tr *storeTxnRead) rangeKeys(ctx context.Context, key, end []byte, curRev i
 	}
 
 	limit := int(ro.Limit)
-	if limit <= 0 || limit > len(revpairs) {
+	if limit <= 0 || limit > len(revpairs) { // 以后写代码注意参数传递的异常情况默认处理：比如这里如果传递的limit小于0，就默认返回查询到的数据
 		limit = len(revpairs)
 	}
 
 	kvs := make([]mvccpb.KeyValue, limit)
-	revBytes := newRevBytes()
+	revBytes := newRevBytes() // 居然还有一个标记位
+
 	for i, revpair := range revpairs[:len(kvs)] {
+		// 进来先判断是否超时了。这里需要将查询太多的那种请求返回了。
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 		}
-		revToBytes(revpair, revBytes)
+		revToBytes(revpair, revBytes) // 将之前的kv对，转换成字符串类型的 连接
 		_, vs := tr.tx.UnsafeRange(schema.Key, revBytes, nil, 0)
-		if len(vs) != 1 {
+		if len(vs) != 1 { // 只能等于1，才是正常的，不为1的都是错误。
 			tr.s.lg.Fatal(
 				"range failed to find revision pair",
 				zap.Int64("revision-main", revpair.main),
 				zap.Int64("revision-sub", revpair.sub),
 			)
 		}
-		if err := kvs[i].Unmarshal(vs[0]); err != nil {
+		if err := kvs[i].Unmarshal(vs[0]); err != nil { // unmarshal到kvs中存储起来
 			tr.s.lg.Fatal(
 				"failed to unmarshal mvccpb.KeyValue",
 				zap.Error(err),
@@ -123,6 +129,7 @@ func (tr *storeTxnRead) rangeKeys(ctx context.Context, key, end []byte, curRev i
 	return &RangeResult{KVs: kvs, Count: total, Rev: curRev}, nil
 }
 
+// End 就是读锁解锁
 func (tr *storeTxnRead) End() {
 	tr.tx.RUnlock() // RUnlock signals the end of concurrentReadTx.
 	tr.s.mu.RUnlock()
@@ -136,6 +143,7 @@ type storeTxnWrite struct {
 	changes  []mvccpb.KeyValue
 }
 
+//
 func (s *store) Write(trace *traceutil.Trace) TxnWrite {
 	s.mu.RLock()
 	tx := s.b.BatchTx()
@@ -154,7 +162,7 @@ func (tw *storeTxnWrite) Rev() int64 { return tw.beginRev }
 func (tw *storeTxnWrite) Range(ctx context.Context, key, end []byte, ro RangeOptions) (r *RangeResult, err error) {
 	rev := tw.beginRev
 	if len(tw.changes) > 0 {
-		rev++
+		rev++ // 事务版本好+1
 	}
 	return tw.rangeKeys(ctx, key, end, rev, ro)
 }
@@ -224,7 +232,7 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 	tw.tx.UnsafeSeqPut(schema.Key, ibytes, d)
 	tw.s.kvindex.Put(key, idxRev)
 	tw.changes = append(tw.changes, kv)
-	tw.trace.Step("store kv pair into bolt db")
+	tw.trace.Step("store kv pair into bolt db") // trace的粒度蛮低的。
 
 	if oldLease == leaseID {
 		tw.trace.Step("attach lease to kv pair")
@@ -235,7 +243,7 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 		if tw.s.le == nil {
 			panic("no lessor to detach lease")
 		}
-		err = tw.s.le.Detach(oldLease, []lease.LeaseItem{{Key: string(key)}})
+		err = tw.s.le.Detach(oldLease, []lease.LeaseItem{{Key: string(key)}}) // 设置了lease，就需要detach分离lease从一个key
 		if err != nil {
 			tw.storeTxnRead.s.lg.Error(
 				"failed to detach old lease from a key",
@@ -257,7 +265,7 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 
 func (tw *storeTxnWrite) deleteRange(key, end []byte) int64 {
 	rrev := tw.beginRev
-	if len(tw.changes) > 0 {
+	if len(tw.changes) > 0 { // 修改的键值对数量
 		rrev++
 	}
 	keys, _ := tw.s.kvindex.Range(key, end, rrev)
@@ -270,12 +278,13 @@ func (tw *storeTxnWrite) deleteRange(key, end []byte) int64 {
 	return int64(len(keys))
 }
 
+// 1.设置tombstone（针对这个key）
 func (tw *storeTxnWrite) delete(key []byte) {
 	ibytes := newRevBytes()
 	idxRev := revision{main: tw.beginRev + 1, sub: int64(len(tw.changes))}
 	revToBytes(idxRev, ibytes)
 
-	ibytes = appendMarkTombstone(tw.storeTxnRead.s.lg, ibytes)
+	ibytes = appendMarkTombstone(tw.storeTxnRead.s.lg, ibytes) //删除就要设置tombstone
 
 	kv := mvccpb.KeyValue{Key: key}
 
@@ -288,7 +297,7 @@ func (tw *storeTxnWrite) delete(key []byte) {
 	}
 
 	tw.tx.UnsafeSeqPut(schema.Key, ibytes, d)
-	err = tw.s.kvindex.Tombstone(key, idxRev)
+	err = tw.s.kvindex.Tombstone(key, idxRev) // 设置stone
 	if err != nil {
 		tw.storeTxnRead.s.lg.Fatal(
 			"failed to tombstone an existing key",
@@ -296,12 +305,14 @@ func (tw *storeTxnWrite) delete(key []byte) {
 			zap.Error(err),
 		)
 	}
-	tw.changes = append(tw.changes, kv)
+	tw.changes = append(tw.changes, kv) // 改变的kv对
 
+	// 处理租期
 	item := lease.LeaseItem{Key: string(key)}
 	leaseID := tw.s.le.GetLease(item)
 
 	if leaseID != lease.NoLease {
+		// 有租约就需要分离
 		err = tw.s.le.Detach(leaseID, []lease.LeaseItem{item})
 		if err != nil {
 			tw.storeTxnRead.s.lg.Error(

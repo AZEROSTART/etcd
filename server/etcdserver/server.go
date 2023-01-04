@@ -280,7 +280,7 @@ type EtcdServer struct {
 	peerRt   http.RoundTripper
 	reqIDGen *idutil.Generator
 
-	// wgMu blocks concurrent waitgroup mutation while server stopping
+	// wgMu blocks concurrent waitgroup mutation while server stopping	有一个wg加wg的读写锁
 	wgMu sync.RWMutex
 	// wg is used to wait for the goroutines that depends on the server state
 	// to exit when stopping the server.
@@ -844,7 +844,7 @@ func (s *EtcdServer) run() {
 
 	for {
 		select {
-		case ap := <-s.r.apply():
+		case ap := <-s.r.apply():		// 里面有快照数据， 异步结偶了
 			f := func(context.Context) { s.applyAll(&ep, &ap) }
 			sched.Schedule(f)
 		case leases := <-expiredLeaseC:
@@ -920,9 +920,10 @@ func (s *EtcdServer) Cleanup() {
 	}
 }
 
+// 快照数据的处理，实例数据的处理
 func (s *EtcdServer) applyAll(ep *etcdProgress, apply *toApply) {
-	s.applySnapshot(ep, apply)
-	s.applyEntries(ep, apply)
+	s.applySnapshot(ep, apply) // 处理实例中记下的快照数据
+	s.applyEntries(ep, apply)  // 处理实例中的entry记录：to？
 
 	proposalsApplied.Set(float64(ep.appliedi))
 	s.applyWait.Trigger(ep.appliedi)
@@ -932,11 +933,11 @@ func (s *EtcdServer) applyAll(ep *etcdProgress, apply *toApply) {
 	// storage, since the raft routine might be slower than toApply routine.
 	<-apply.notifyc
 
-	s.triggerSnapshot(ep)
+	s.triggerSnapshot(ep) // 根据当前状态（配置文件）决定是否触发快照
 	select {
 	// snapshot requested via send()
-	case m := <-s.r.msgSnapC:
-		merged := s.createMergedSnapshotMessage(m, ep.appliedt, ep.appliedi, ep.confState)
+	case m := <-s.r.msgSnapC: // 从raftNode中获取快照消息。
+		merged := s.createMergedSnapshotMessage(m, ep.appliedt, ep.appliedi, ep.confState) // 这里居然将v2数据和v3数据合并成完整快照数据，还可以v2 v3一起用？
 		s.sendMergedSnap(merged)
 	default:
 	}
@@ -1119,7 +1120,7 @@ func (s *EtcdServer) applyEntries(ep *etcdProgress, apply *toApply) {
 		)
 	}
 	var ents []raftpb.Entry
-	if ep.appliedi+1-firsti < uint64(len(apply.entries)) {
+	if ep.appliedi+1-firsti < uint64(len(apply.entries)) { // 要应用的有重复的。
 		ents = apply.entries[ep.appliedi+1-firsti:]
 	}
 	if len(ents) == 0 {
@@ -1722,7 +1723,7 @@ func (s *EtcdServer) publishV3(timeout time.Duration) {
 		default:
 		}
 
-		ctx, cancel := context.WithTimeout(s.ctx, timeout)
+		ctx, cancel := context.WithTimeout(s.ctx, timeout)			// 注释要写在后面，不影响debug
 		_, err := s.raftRequest(ctx, pb.InternalRaftRequest{ClusterMemberAttrSet: req})
 		cancel()
 		switch err {
@@ -1792,6 +1793,7 @@ func (s *EtcdServer) sendMergedSnap(merged snap.Message) {
 // toApply takes entries received from Raft (after it has been committed) and
 // applies them to the current state of the EtcdServer.
 // The given entries should not be empty.
+// 应用到状态🐓里面
 func (s *EtcdServer) apply(
 	es []raftpb.Entry,
 	confState *raftpb.ConfState,
@@ -2356,7 +2358,7 @@ func (s *EtcdServer) GoAttach(f func()) {
 	}
 
 	// now safe to add since waitgroup wait has not started yet
-	s.wg.Add(1)
+	s.wg.Add(1)			// 那就是结束的时候会有wait（）！不是无限制的go func！学到了
 	go func() {
 		defer s.wg.Done()
 		f()

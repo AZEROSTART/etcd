@@ -22,12 +22,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// 调度压缩？删除工作，是进入db的删除，所以压缩的时候，需要删除keyIndex，db数据
 func (s *store) scheduleCompaction(compactMainRev int64, keep map[revision]struct{}) bool {
 	totalStart := time.Now()
 	defer func() { dbCompactionTotalMs.Observe(float64(time.Since(totalStart) / time.Millisecond)) }()
 	keyCompactions := 0
 	defer func() { dbCompactionKeysCounter.Add(float64(keyCompactions)) }()
-	defer func() { dbCompactionLast.Set(float64(time.Now().Unix())) }()
+	defer func() { dbCompactionLast.Set(float64(time.Now().Unix())) }() // 记得看看这里咋么用的。
+	// 指标的上报都是defer
 
 	end := make([]byte, 8)
 	binary.BigEndian.PutUint64(end, uint64(compactMainRev+1))
@@ -43,6 +45,7 @@ func (s *store) scheduleCompaction(compactMainRev int64, keep map[revision]struc
 
 		tx := s.b.BatchTx()
 		tx.LockOutsideApply()
+		// 😯，因为是unsageRange，所以需要自己实现锁
 		keys, _ := tx.UnsafeRange(schema.Key, last, end, int64(batchNum))
 		for _, key := range keys {
 			rev = bytesToRev(key)
@@ -67,6 +70,7 @@ func (s *store) scheduleCompaction(compactMainRev int64, keep map[revision]struc
 		// update last
 		revToBytes(revision{main: rev.main, sub: rev.sub + 1}, last)
 		// Immediately commit the compaction deletes instead of letting them accumulate in the write buffer
+		//立即删除
 		s.b.ForceCommit()
 		dbCompactionPauseMs.Observe(float64(time.Since(start) / time.Millisecond))
 

@@ -66,10 +66,12 @@ var (
 )
 
 // WAL is a logical representation of the stable storage.
-// WAL is either in read mode or append mode but not both.
+// 稳定存储代表，wal预写日志，
+// WAL is either in read mode or append mode but not bo
 // A newly created WAL is in append mode, and ready for appending records.
 // A just opened WAL is in read mode, and ready for reading records.
 // The WAL will be ready for appending after reading out all the previous records.
+// 这里面的编码解码不是接口了，因为这里不支持定制了，只能统一。因为这个wal格式是定下来的
 type WAL struct {
 	lg *zap.Logger
 
@@ -81,14 +83,14 @@ type WAL struct {
 	metadata []byte           // metadata recorded at the head of each WAL
 	state    raftpb.HardState // hardstate recorded at the head of WAL
 
-	start     walpb.Snapshot // snapshot to start reading
+	start     walpb.Snapshot // snapshot to start reading		wal用给快照的。
 	decoder   *decoder       // decoder to decode records
 	readClose func() error   // closer for decode reader
 
-	unsafeNoSync bool // if set, do not fsync
+	unsafeNoSync bool // if set, do not fsync		不同步到磁盘
 
 	mu      sync.Mutex
-	enti    uint64   // index of the last entry saved to the wal
+	enti    uint64   // index of the last entry saved to the wal		保存最后一个
 	encoder *encoder // encoder to encode records
 
 	locks []*fileutil.LockedFile // the locked files the WAL holds (the name is increasing)

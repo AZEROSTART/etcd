@@ -19,6 +19,7 @@ import "encoding/binary"
 // revBytesLen is the byte length of a normal revision.
 // First 8 bytes is the revision.main in big-endian format. The 9th byte
 // is a '_'. The last 8 bytes is the revision.sub in big-endian format.
+// "reversion" + "_" + "reversion.sub" 还加上了子版本
 const revBytesLen = 8 + 1 + 8
 
 // A revision indicates modification of the key-value space.
@@ -45,11 +46,11 @@ func (a revision) GreaterThan(b revision) bool {
 }
 
 func newRevBytes() []byte {
-	return make([]byte, revBytesLen, markedRevBytesLen)
+	return make([]byte, revBytesLen, markedRevBytesLen) //最后还有一个标记位
 }
 
 func revToBytes(rev revision, bytes []byte) {
-	binary.BigEndian.PutUint64(bytes, uint64(rev.main))
+	binary.BigEndian.PutUint64(bytes, uint64(rev.main)) // 大端进来
 	bytes[8] = '_'
 	binary.BigEndian.PutUint64(bytes[9:], uint64(rev.sub))
 }

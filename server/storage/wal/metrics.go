@@ -25,10 +25,10 @@ var (
 
 		// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 		// highest bucket start of 0.001 sec * 2^13 == 8.192 sec
-		Buckets: prometheus.ExponentialBuckets(0.001, 2, 14),
+		Buckets: prometheus.ExponentialBuckets(0.001, 2, 14), //histogram可以定义最低喝最高值。
 	})
 
-	walWriteBytes = prometheus.NewGauge(prometheus.GaugeOpts{
+	walWriteBytes = prometheus.NewGauge(prometheus.GaugeOpts{ // geige
 		Namespace: "etcd",
 		Subsystem: "disk",
 		Name:      "wal_write_bytes_total",
@@ -36,7 +36,8 @@ var (
 	})
 )
 
+// 导入这个包就会初始化，这个地方用的不错，学习了。
 func init() {
-	prometheus.MustRegister(walFsyncSec)
+	prometheus.MustRegister(walFsyncSec) // 提供url？
 	prometheus.MustRegister(walWriteBytes)
 }

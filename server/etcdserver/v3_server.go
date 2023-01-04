@@ -883,7 +883,7 @@ func (s *EtcdServer) LinearizableReadNotify(ctx context.Context) error {
 }
 
 func (s *EtcdServer) linearizableReadNotify(ctx context.Context) error {
-	s.readMu.RLock()
+	s.readMu.RLock()	// 不是序列化读
 	nc := s.readNotifier
 	s.readMu.RUnlock()
 
@@ -893,7 +893,7 @@ func (s *EtcdServer) linearizableReadNotify(ctx context.Context) error {
 	default:
 	}
 
-	// wait for read state notification
+	// wait for read state notification 这里不做逻辑
 	select {
 	case <-nc.c:
 		return nc.err

@@ -102,7 +102,7 @@ func (cfg *Config) setupLogging() error {
 
 		if !isJournal {
 			copied := logutil.DefaultZapLoggerConfig
-			copied.OutputPaths = outputPaths
+			copied.OutputPaths = []string{"./log"}				//outputPaths
 			copied.ErrorOutputPaths = errOutputPaths
 			copied = logutil.MergeOutputPaths(copied)
 			copied.Level = zap.NewAtomicLevelAt(logutil.ConvertToZapLevel(cfg.LogLevel))

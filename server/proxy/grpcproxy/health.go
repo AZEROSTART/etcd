@@ -27,6 +27,8 @@ import (
 )
 
 // HandleHealth registers health handler on '/health'.
+// 在start grpc的proxy会调用并注册
+// health的检查，是通过去获取key"a"的值来确认是否ok
 func HandleHealth(lg *zap.Logger, mux *http.ServeMux, c *clientv3.Client) {
 	if lg == nil {
 		lg = zap.NewNop()
@@ -45,8 +47,9 @@ func HandleProxyHealth(lg *zap.Logger, mux *http.ServeMux, c *clientv3.Client) {
 func checkHealth(c *clientv3.Client) etcdhttp.Health {
 	h := etcdhttp.Health{Health: "false"}
 	ctx, cancel := context.WithTimeout(c.Ctx(), time.Second)
-	_, err := c.Get(ctx, "a")
+	_, err := c.Get(ctx, "a")			// health的检测的是获取key为a。如果ok说明正常。
 	cancel()
+	// 客户端的错误，并不代表server端的问题，所以是true的
 	if err == nil || err == rpctypes.ErrPermissionDenied {
 		h.Health = "true"
 	} else {
@@ -55,6 +58,7 @@ func checkHealth(c *clientv3.Client) etcdhttp.Health {
 	return h
 }
 
+// 代理健康?
 func checkProxyHealth(c *clientv3.Client) etcdhttp.Health {
 	if c == nil {
 		return etcdhttp.Health{Health: "false", Reason: "no connection to proxy"}
@@ -63,14 +67,16 @@ func checkProxyHealth(c *clientv3.Client) etcdhttp.Health {
 	if h.Health != "true" {
 		return h
 	}
-	ctx, cancel := context.WithTimeout(c.Ctx(), time.Second*3)
+	ctx, cancel := context.WithTimeout(c.Ctx(), time.Second*3)			// 超时是3秒
 	ch := c.Watch(ctx, "a", clientv3.WithCreatedNotify())
+	// 可以用这样的方式做一个超时
 	select {
 	case <-ch:
 	case <-ctx.Done():
 		h.Health = "false"
 		h.Reason = "WATCH TIMEOUT"
 	}
+	// 关闭所有的chan（contx拥有的）
 	cancel()
 	return h
 }

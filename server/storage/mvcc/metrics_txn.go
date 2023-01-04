@@ -20,6 +20,8 @@ import (
 	"go.etcd.io/etcd/server/v3/lease"
 )
 
+// 附带指标上报的事务写？
+// yep，在每个入口的地方都进行了处理，计数等。在end时候进行上报。
 type metricsTxnWrite struct {
 	TxnWrite
 	ranges  uint

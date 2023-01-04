@@ -55,7 +55,7 @@ func (kln *keepaliveListener) Accept() (net.Conn, error) {
 	// default on linux:  30 + 8 * 30
 	// default on osx:    30 + 8 * 75
 	kac.SetKeepAlive(true)
-	kac.SetKeepAlivePeriod(30 * time.Second)
+	kac.SetKeepAlivePeriod(30 * time.Second)		// 30秒的长链接
 	return c, nil
 }
 

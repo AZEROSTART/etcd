@@ -42,10 +42,10 @@ var (
 func startEtcdOrProxyV2(args []string) {
 	grpc.EnableTracing = false
 
-	cfg := newConfig()
+	cfg := newConfig()			// 配置了参数对应处理项目
 	defaultInitialCluster := cfg.ec.InitialCluster
 
-	err := cfg.parse(args[1:])
+	err := cfg.parse(args[1:])			// 在这里配置了文件输出
 	lg := cfg.ec.GetLogger()
 	// If we failed to parse the whole configuration, print the error using
 	// preferably the resolved logger from the config,
@@ -54,6 +54,7 @@ func startEtcdOrProxyV2(args []string) {
 		var zapError error
 		// use this logger
 		lg, zapError = logutil.CreateDefaultZapLogger(zap.InfoLevel)
+		fmt.Println("在这里开启了日志")
 		if zapError != nil {
 			fmt.Printf("error creating zap logger %v", zapError)
 			os.Exit(1)
@@ -69,7 +70,7 @@ func startEtcdOrProxyV2(args []string) {
 		os.Exit(1)
 	}
 
-	cfg.ec.SetupGlobalLoggers()
+	cfg.ec.SetupGlobalLoggers()		// 有点东西
 
 	defer func() {
 		logger := cfg.ec.GetLogger()
@@ -108,7 +109,7 @@ func startEtcdOrProxyV2(args []string) {
 			zap.String("dir-type", string(which)),
 		)
 		switch which {
-		case dirMember:
+		case dirMember:	// 如果是member角色就进入运行！！！！
 			stopped, errc, err = startEtcd(&cfg.ec)
 		case dirProxy:
 			lg.Panic("v2 http proxy has already been deprecated in 3.6", zap.String("dir-type", string(which)))

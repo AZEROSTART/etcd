@@ -69,6 +69,7 @@ service Watch {
   // stream sends events. One watch RPC can watch on multiple key ranges, streaming events
   // for several watches at once. The entire event history can be watched starting from the
   // last compaction revision.
+  // 双向的流！两方都要接受完数据才行
   rpc Watch(stream WatchRequest) returns (stream WatchResponse) {
       option (google.api.http) = {
         post: "/v3/watch"

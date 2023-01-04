@@ -52,11 +52,12 @@ func newDecoder(r ...io.Reader) *decoder {
 	}
 }
 
+// 这是破译记录
 func (d *decoder) decode(rec *walpb.Record) error {
-	rec.Reset()
+	rec.Reset() // 重置
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.decodeRecord(rec)
+	return d.decodeRecord(rec) //
 }
 
 // raft max message size is set to 1 MB in etcd server
@@ -64,31 +65,37 @@ func (d *decoder) decode(rec *walpb.Record) error {
 // thus entry size should never exceed 10 MB
 const maxWALEntrySizeLimit = int64(10 * 1024 * 1024)
 
+// 解码记录从文件里面
 func (d *decoder) decodeRecord(rec *walpb.Record) error {
 	if len(d.brs) == 0 {
 		return io.EOF
 	}
-
+	// 读取第一个8字节。代表长度
 	l, err := readInt64(d.brs[0])
 	if err == io.EOF || (err == nil && l == 0) {
+		// 此时是说明该reader是空的
 		// hit end of file or preallocated space
-		d.brs = d.brs[1:]
+		d.brs = d.brs[1:] // 用后面的bufferio，第一个不要了
 		if len(d.brs) == 0 {
+			// 说明只有一个
 			return io.EOF
 		}
 		d.lastValidOff = 0
+		// 修改了之后继续decoder。厉害
 		return d.decodeRecord(rec)
 	}
 	if err != nil {
 		return err
 	}
 
+	// 计算字节数
 	recBytes, padBytes := decodeFrameSize(l)
 	if recBytes >= maxWALEntrySizeLimit-padBytes {
 		return ErrMaxWALEntrySizeLimitExceeded
 	}
 
 	data := make([]byte, recBytes+padBytes)
+	// 全部读出来
 	if _, err = io.ReadFull(d.brs[0], data); err != nil {
 		// ReadFull returns io.EOF only if no bytes were read
 		// the decoder should treat this as an ErrUnexpectedEOF instead.
@@ -97,7 +104,9 @@ func (d *decoder) decodeRecord(rec *walpb.Record) error {
 		}
 		return err
 	}
+	// 解析成pb的格式，用的是pb的编码格式。
 	if err := rec.Unmarshal(data[:recBytes]); err != nil {
+		// 还有可能是分裂写？（分裂写说明有的chunk部分全是0
 		if d.isTornEntry(data) {
 			return io.ErrUnexpectedEOF
 		}
@@ -106,8 +115,10 @@ func (d *decoder) decodeRecord(rec *walpb.Record) error {
 
 	// skip crc checking if the record type is crcType
 	if rec.Type != crcType {
+		// 记录==rec==record
 		d.crc.Write(rec.Data)
-		if err := rec.Validate(d.crc.Sum32()); err != nil {
+		// 写到hash的校验中
+		if err := rec.Validate(d.crc.Sum32()); err != nil { // 这个validate是判断相等与否
 			if d.isTornEntry(data) {
 				return io.ErrUnexpectedEOF
 			}
@@ -152,6 +163,7 @@ func (d *decoder) isTornEntry(data []byte) bool {
 	}
 
 	// if any data for a sector chunk is all 0, it's a torn write
+	// 全是0就是分开写的。
 	for _, sect := range chunks {
 		isZero := true
 		for _, v := range sect {

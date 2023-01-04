@@ -162,6 +162,7 @@ func newGRPCProxyStartCommand() *cobra.Command {
 	return &cmd
 }
 
+// grpc的代理
 func startGRPCProxy(cmd *cobra.Command, args []string) {
 	checkArgs()
 	lvl := zap.InfoLevel
@@ -451,6 +452,7 @@ func newGRPCProxyServer(lg *zap.Logger, client *clientv3.Client) *grpc.Server {
 	return server
 }
 
+// http监听
 func mustHTTPListener(lg *zap.Logger, m cmux.CMux, tlsinfo *transport.TLSInfo, c *clientv3.Client, proxy *clientv3.Client) (*http.Server, net.Listener) {
 	httpClient := mustNewHTTPClient(lg)
 	httpmux := http.NewServeMux()

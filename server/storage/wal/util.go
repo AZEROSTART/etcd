@@ -100,6 +100,7 @@ func checkWalNames(lg *zap.Logger, names []string) []string {
 }
 
 func parseWALName(str string) (seq, index uint64, err error) {
+	// 通过名字解析出来，然后获取数字
 	if !strings.HasSuffix(str, ".wal") {
 		return 0, 0, errBadWALName
 	}

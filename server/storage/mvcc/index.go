@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// 抽象索引概念，由key》索引index》value的过程
 type index interface {
 	Get(key []byte, atRev int64) (rev, created revision, ver int64, err error)
 	Range(key, end []byte, atRev int64) ([][]byte, []revision)
@@ -53,6 +54,7 @@ func newTreeIndex(lg *zap.Logger) index {
 	}
 }
 
+// 修改key的版本
 func (ti *treeIndex) Put(key []byte, rev revision) {
 	keyi := &keyIndex{key: key}
 
@@ -109,6 +111,7 @@ func (ti *treeIndex) visit(key, end []byte, f func(ki *keyIndex) bool) {
 	})
 }
 
+// 返回一个key的多个版本的revision
 func (ti *treeIndex) Revisions(key, end []byte, atRev int64, limit int) (revs []revision, total int) {
 	if end == nil {
 		rev, _, _, err := ti.Get(key, atRev)
@@ -148,6 +151,7 @@ func (ti *treeIndex) CountRevisions(key, end []byte, atRev int64) int {
 	return total
 }
 
+// 范围查询key，如果end为nil，只查询一个值。
 func (ti *treeIndex) Range(key, end []byte, atRev int64) (keys [][]byte, revs []revision) {
 	if end == nil {
 		rev, _, _, err := ti.Get(key, atRev)
@@ -166,6 +170,7 @@ func (ti *treeIndex) Range(key, end []byte, atRev int64) (keys [][]byte, revs []
 	return keys, revs
 }
 
+// 查询墓碑，即查询这个删除没有。
 func (ti *treeIndex) Tombstone(key []byte, rev revision) error {
 	keyi := &keyIndex{key: key}
 
@@ -213,6 +218,7 @@ func (ti *treeIndex) RangeSince(key, end []byte, rev int64) []revision {
 	return revs
 }
 
+//压缩索引，需要删除一些？
 func (ti *treeIndex) Compact(rev int64) map[revision]struct{} {
 	available := make(map[revision]struct{})
 	ti.lg.Info("compact tree index", zap.Int64("revision", rev))

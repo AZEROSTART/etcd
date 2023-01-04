@@ -42,12 +42,15 @@ const (
 	// markedRevBytesLen is the byte length of marked revision.
 	// The first `revBytesLen` bytes represents a normal revision. The last
 	// one byte is the mark.
-	markedRevBytesLen      = revBytesLen + 1
-	markBytePosition       = markedRevBytesLen - 1
-	markTombstone     byte = 't'
+	// 加个标记位
+	markedRevBytesLen = revBytesLen + 1
+	// 位置
+	markBytePosition      = markedRevBytesLen - 1
+	markTombstone    byte = 't'
 )
 
 var restoreChunkKeys = 10000 // non-const for testing
+// 压缩条数限制？
 var defaultCompactBatchLimit = 1000
 var minimumBatchInterval = 10 * time.Millisecond
 
@@ -65,23 +68,25 @@ type store struct {
 	// mu read locks for txns and write locks for non-txn store changes.
 	mu sync.RWMutex
 
+	// 这个backend就是boltDB，这里也抽象接口了。
 	b       backend.Backend
-	kvindex index
+	kvindex index // 抽象接口获取key对应的reversion
 
-	le lease.Lessor
+	le lease.Lessor // 抽象的租约接口
 
-	// revMuLock protects currentRev and compactMainRev.
+	// revMuLock protects （currentRev and compactMainRev）保护这两个。
 	// Locked at end of write txn and released after write txn unlock lock.
 	// Locked before locking read txn and released after locking.
 	revMu sync.RWMutex
 	// currentRev is the revision of the last completed transaction.
+	// 写事务之后就是写这个，所以lock
 	currentRev int64
 	// compactMainRev is the main revision of the last compaction.
 	compactMainRev int64
 
-	fifoSched schedule.Scheduler
+	fifoSched schedule.Scheduler // 怎么还有个这玩意儿啊。厉害。来看看：看完了，是一个单携程的任务处理队列
 
-	stopc chan struct{}
+	stopc chan struct{} // 这里是无缓存chan
 
 	lg *zap.Logger
 }
@@ -114,22 +119,24 @@ func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, cfg StoreConfi
 
 		lg: lg,
 	}
-	s.ReadView = &readView{s}
+	s.ReadView = &readView{s} // 居然抽自己？？？🐮
 	s.WriteView = &writeView{s}
 	if s.le != nil {
 		s.le.SetRangeDeleter(func() lease.TxnDelete { return s.Write(traceutil.TODO()) })
 	}
 
+	// 获取backend的读写事务。
 	tx := s.b.BatchTx()
 	tx.LockOutsideApply()
-	tx.UnsafeCreateBucket(schema.Key)
-	schema.UnsafeCreateMetaBucket(tx)
+
+	tx.UnsafeCreateBucket(schema.Key) // 创建名字为 key的bucket
+	schema.UnsafeCreateMetaBucket(tx) // 创建名字为 meta的bucket
 	tx.Unlock()
-	s.b.ForceCommit()
+	s.b.ForceCommit() // 事务提交
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.restore(); err != nil {
+	if err := s.restore(); err != nil { // 从backend中恢复，包括b树
 		// TODO: return the error instead of panic here?
 		panic("failed to recover store from backend")
 	}
@@ -156,6 +163,7 @@ func (s *store) compactBarrier(ctx context.Context, ch chan struct{}) {
 	close(ch)
 }
 
+//	计算kv的hash（提交之后）
 func (s *store) Hash() (hash uint32, revision int64, err error) {
 	// TODO: hash and revision could be inconsistent, one possible fix is to add s.revMu.RLock() at the beginning of function, which is costly
 	start := time.Now()
@@ -245,6 +253,7 @@ func (s *store) updateCompactRev(rev int64) (<-chan struct{}, error) {
 	return nil, nil
 }
 
+// 压缩任务
 func (s *store) compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, error) {
 	ch := make(chan struct{})
 	var j = func(ctx context.Context) {
@@ -267,6 +276,7 @@ func (s *store) compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, err
 	return ch, nil
 }
 
+// 无所压缩
 func (s *store) compactLockfree(rev int64) (<-chan struct{}, error) {
 	ch, err := s.updateCompactRev(rev)
 	if err != nil {
@@ -276,6 +286,7 @@ func (s *store) compactLockfree(rev int64) (<-chan struct{}, error) {
 	return s.compact(traceutil.TODO(), rev)
 }
 
+// 压缩
 func (s *store) Compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, error) {
 	s.mu.Lock()
 
@@ -290,12 +301,14 @@ func (s *store) Compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, err
 	return s.compact(trace, rev)
 }
 
+// 提交，调用强制提交（加了锁）
 func (s *store) Commit() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.b.ForceCommit()
 }
 
+// 恢复store
 func (s *store) Restore(b backend.Backend) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -368,7 +381,7 @@ func (s *store) restore() error {
 	}
 	close(rkvc)
 
-	{
+	{ // 临界区都用{}包括起来
 		s.revMu.Lock()
 		s.currentRev = <-revc
 

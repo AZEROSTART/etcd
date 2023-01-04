@@ -28,7 +28,7 @@ const (
 type Event struct {
 	Action    string      `json:"action"`
 	Node      *NodeExtern `json:"node,omitempty"`
-	PrevNode  *NodeExtern `json:"prevNode,omitempty"`
+	PrevNode  *NodeExtern `json:"prevNode,omitempty"`			// omit empty 省略空，如果没有，这个字段就不传了
 	EtcdIndex uint64      `json:"-"`
 	Refresh   bool        `json:"refresh,omitempty"`
 }

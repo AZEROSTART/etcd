@@ -56,7 +56,7 @@ func (td *TimeoutDetector) Observe(which uint64) (bool, time.Duration) {
 
 	ok := true
 	now := time.Now()
-	exceed := time.Duration(0)
+	exceed := time.Duration(0)			// 如果需要返回数据，就通过
 
 	if pt, found := td.records[which]; found {
 		exceed = now.Sub(pt) - td.maxDuration

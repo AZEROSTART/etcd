@@ -41,7 +41,7 @@ type Config struct {
 	Logger *zap.Logger
 }
 
-// Verify performs consistency checks of given etcd data-directory.
+// Verify performs consistency checks of given etcd data-directory.	一致性检查？
 // The errors are reported as the returned error, but for some situations
 // the function can also panic.
 // The function is expected to work on not-in-use data model, i.e.
@@ -55,11 +55,13 @@ func Verify(cfg Config) error {
 	var err error
 	lg.Info("verification of persisted state", zap.String("data-dir", cfg.DataDir))
 	defer func() {
+		// 先判断错误是否为空，如果panic了是error为nil的。
 		if err != nil {
 			lg.Error("verification of persisted state failed",
 				zap.String("data-dir", cfg.DataDir),
 				zap.Error(err))
 		} else if r := recover(); r != nil {
+			// panic的处理是，打印一个日志，然后再panic
 			lg.Error("verification of persisted state failed",
 				zap.String("data-dir", cfg.DataDir))
 			panic(r)

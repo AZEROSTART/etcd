@@ -29,7 +29,7 @@ func Main(args []string) {
 		cmd := args[1]
 		switch cmd {
 		case "gateway", "grpc-proxy":
-			if err := rootCmd.Execute(); err != nil {
+			if err := rootCmd.Execute(); err != nil {			// 如果是代理，就执行"etcd serveer的命令"
 				fmt.Fprint(os.Stderr, err)
 				os.Exit(1)
 			}

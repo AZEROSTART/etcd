@@ -37,6 +37,7 @@ func NewKvProxy(c *clientv3.Client) (pb.KVServer, <-chan struct{}) {
 	return kv, donec
 }
 
+// 加了代理，就是加了cache
 func (p *kvProxy) Range(ctx context.Context, r *pb.RangeRequest) (*pb.RangeResponse, error) {
 	if r.Serializable {
 		resp, err := p.cache.Get(r)

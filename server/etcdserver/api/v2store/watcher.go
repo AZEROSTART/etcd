@@ -14,6 +14,7 @@
 
 package v2store
 
+// v2的watch看看来。
 type Watcher interface {
 	EventChan() chan *Event
 	StartIndex() uint64 // The EtcdIndex at which the Watcher was created

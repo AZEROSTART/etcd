@@ -84,6 +84,7 @@ type Lessor interface {
 	// SetRangeDeleter lets the lessor create TxnDeletes to the store.
 	// Lessor deletes the items in the revoked or expired lease by creating
 	// new TxnDeletes.
+	// 删除过期的玩意儿
 	SetRangeDeleter(rd RangeDeleter)
 
 	SetCheckpointer(cp Checkpointer)
@@ -605,7 +606,10 @@ func (le *lessor) runLoop() {
 	defer close(le.doneC)
 
 	for {
+		// 500 ms检查一次
+		// 检查是否有过期的leadse
 		le.revokeExpiredLeases()
+		// 检查并更新
 		le.checkpointScheduledLeases()
 
 		select {
@@ -676,6 +680,7 @@ func (le *lessor) clearLeaseExpiredNotifier() {
 // expireExists returns true if expiry items exist.
 // It pops only when expiry item exists.
 // "next" is true, to indicate that it may exist in next attempt.
+//
 func (le *lessor) expireExists() (l *Lease, ok bool, next bool) {
 	if le.leaseExpiredNotifier.Len() == 0 {
 		return nil, false, false

@@ -44,6 +44,7 @@ type watchable interface {
 	rev() int64
 }
 
+// 可以watch的存储
 type watchableStore struct {
 	*store
 
@@ -56,10 +57,12 @@ type watchableStore struct {
 	victimc chan struct{}
 
 	// contains all unsynced watchers that needs to sync with events that have happened
+
 	unsynced watcherGroup
 
 	// contains all synced watchers that are in sync with the progress of the store.
 	// The key of the map is the key that the watcher watches on.
+	// 已经全部同步完的实例，
 	synced watcherGroup
 
 	stopc chan struct{}
@@ -208,6 +211,7 @@ func (s *watchableStore) Restore(b backend.Backend) error {
 }
 
 // syncWatchersLoop syncs the watcher in the unsynced map every 100ms.
+// 同步未同步的
 func (s *watchableStore) syncWatchersLoop() {
 	defer s.wg.Done()
 

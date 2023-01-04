@@ -342,6 +342,7 @@ func (n *node) run() {
 		}
 
 		select {
+		// 堵塞于这里；等待下一轮论序
 		// TODO: maybe buffer the config propose if there exists one (the way
 		// described in raft dissertation)
 		// Currently it is dropped in Step silently.

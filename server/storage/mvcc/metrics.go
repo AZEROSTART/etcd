@@ -166,6 +166,7 @@ var (
 		},
 	)
 	// overridden by mvcc initialization
+	// restore用
 	reportDbTotalSizeInBytesMu sync.RWMutex
 	reportDbTotalSizeInBytes   = func() float64 { return 0 }
 
@@ -239,6 +240,7 @@ var (
 		},
 	)
 	// overridden by mvcc initialization
+	// restore用
 	reportCurrentRevMu sync.RWMutex
 	reportCurrentRev   = func() float64 { return 0 }
 

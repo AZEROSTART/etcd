@@ -35,6 +35,7 @@ type RangeResult struct {
 	Count int
 }
 
+// 读请求相关操作的抽象
 type ReadView interface {
 	// FirstRev returns the first KV revision at the time of opening the txn.
 	// After a compaction, the first revision increases to the compaction
@@ -57,12 +58,14 @@ type ReadView interface {
 
 // TxnRead represents a read-only transaction with operations that will not
 // block other read transactions.
+// 事务读才是线上使用的
 type TxnRead interface {
 	ReadView
 	// End marks the transaction is complete and ready to commit.
 	End()
 }
 
+// 写操作相关
 type WriteView interface {
 	// DeleteRange deletes the given range from the store.
 	// A deleteRange increases the rev of the store if any key in the range exists.
@@ -82,6 +85,7 @@ type WriteView interface {
 }
 
 // TxnWrite represents a transaction that can modify the store.
+// 事务写包括了事务读；
 type TxnWrite interface {
 	TxnRead
 	WriteView
@@ -89,7 +93,7 @@ type TxnWrite interface {
 	Changes() []mvccpb.KeyValue
 }
 
-// txnReadWrite coerces a read txn to a write, panicking on any write operation.
+// txnReadWrite coerces（强迫） a read txn to a write, panicking on any write operation.
 type txnReadWrite struct{ TxnRead }
 
 func (trw *txnReadWrite) DeleteRange(key, end []byte) (n, rev int64) { panic("unexpected DeleteRange") }
@@ -98,6 +102,7 @@ func (trw *txnReadWrite) Put(key, value []byte, lease lease.LeaseID) (rev int64)
 }
 func (trw *txnReadWrite) Changes() []mvccpb.KeyValue { return nil }
 
+// 返回的事务写只
 func NewReadOnlyTxnWrite(txn TxnRead) TxnWrite { return &txnReadWrite{txn} }
 
 type ReadTxMode uint32
@@ -109,6 +114,7 @@ const (
 	SharedBufReadTxMode = ReadTxMode(2)
 )
 
+// KV接口，抽象读写等操作。实例有keyIndex和直接的index
 type KV interface {
 	ReadView
 	WriteView
@@ -137,6 +143,7 @@ type KV interface {
 }
 
 // WatchableKV is a KV that can be watched.
+// 一个函数也用接口。
 type WatchableKV interface {
 	KV
 	Watchable

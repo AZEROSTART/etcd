@@ -129,8 +129,6 @@ github.com/gordonklaus/ineffassign v0.0.0-20210914165742-4cc7213b9bc8 h1:PVRE9d4
 github.com/gordonklaus/ineffassign v0.0.0-20210914165742-4cc7213b9bc8/go.mod h1:Qcp2HIAYhR7mNUVSIxZww3Guk4it82ghYcEXIAk+QT0=
 github.com/grpc-ecosystem/grpc-gateway v1.16.0 h1:gmcG1KaJ57LophUzW0Hy8NmPhnMZb4M0+kPpLofRdBo=
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
-github.com/gyuho/gocovmerge v0.0.0-20171205171859-50c7e6afd535 h1:BGeD3v3lyKZy+ocGtprXiDXjIiXvZDfuyII7Lym7GbQ=
-github.com/gyuho/gocovmerge v0.0.0-20171205171859-50c7e6afd535/go.mod h1:xV7b0Cn2irnP1jU+mMYvqPAPuFPNjtgB+rvKu/dLIz4=
 github.com/hexfusion/schwag v0.0.0-20211117114134-3ceb0191ccbf h1:beD8tmKm5FqWVtm3eV4ty16y1Vu044zh8Juw7swlpr8=
 github.com/hexfusion/schwag v0.0.0-20211117114134-3ceb0191ccbf/go.mod h1:wSgrm+n3LvHOVxUJo2ha5ffLqRmt6+oGoD6J/suB66c=
 github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NHg9XEKhtSvM=

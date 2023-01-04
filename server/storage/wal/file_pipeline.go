@@ -25,6 +25,7 @@ import (
 )
 
 // filePipeline pipelines allocating disk space
+// ？还可以分配磁盘空间？
 type filePipeline struct {
 	lg *zap.Logger
 
@@ -58,6 +59,7 @@ func newFilePipeline(lg *zap.Logger, dir string, fileSize int64) *filePipeline {
 
 // Open returns a fresh file for writing. Rename the file before calling
 // Open again or there will be file collisions.
+// open 是从chan获得
 func (fp *filePipeline) Open() (f *fileutil.LockedFile, err error) {
 	select {
 	case f = <-fp.filec:
@@ -71,13 +73,17 @@ func (fp *filePipeline) Close() error {
 	return <-fp.errc
 }
 
+// 核心：产生文件名字，然后创建/打开，再上锁，预分配空间，if can
 func (fp *filePipeline) alloc() (f *fileutil.LockedFile, err error) {
 	// count % 2 so this file isn't the same as the one last published
+	// 是0 1 0 1的产生名字
 	fpath := filepath.Join(fp.dir, fmt.Sprintf("%d.tmp", fp.count%2))
+	// 打开文件，并且上锁
 	if f, err = fileutil.LockFile(fpath, os.O_CREATE|os.O_WRONLY, fileutil.PrivateFileMode); err != nil {
 		return nil, err
 	}
 	if err = fileutil.Preallocate(f.File, fp.size, true); err != nil {
+		// 分系统做预分配空间
 		fp.lg.Error("failed to preallocate space when creating a new WAL", zap.Int64("size", fp.size), zap.Error(err))
 		f.Close()
 		return nil, err

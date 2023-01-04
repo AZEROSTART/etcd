@@ -354,8 +354,9 @@ func (r *raftNode) processMessages(ms []raftpb.Message) []raftpb.Message {
 			}
 			ms[i].To = 0
 		}
+		// 心跳消息
 		if ms[i].Type == raftpb.MsgHeartbeat {
-			ok, exceed := r.td.Observe(ms[i].To)
+			ok, exceed := r.td.Observe(ms[i].To)		// 每个id都有一个超出ticker，
 			if !ok {
 				// TODO: limit request rate.
 				r.lg.Warn(
